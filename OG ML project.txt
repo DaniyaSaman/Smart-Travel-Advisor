@@ -1,0 +1,1864 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import random
+from datetime import datetime, timedelta
+import calendar
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import io
+import base64
+import os
+
+# Page configuration
+st.set_page_config(
+    page_title="Travel Planner - Smart Travel Advisor",
+    page_icon="✈️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for better visuals
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 3rem;
+        color: #FFFFFF;
+        text-align: center;
+        padding: 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 15px;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+    .destination-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.3s;
+        border-left: 5px solid #667eea;
+        margin-bottom: 1rem;
+        background-size: cover;
+        background-position: center;
+        color: white;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        min-height: 350px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    .destination-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    }
+    .destination-card-content {
+        background: rgba(0,0,0,0.8);
+        padding: 1rem;
+        border-radius: 10px;
+        backdrop-filter: blur(5px);
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        color: #333333;
+    }
+    .weather-badge {
+        padding: 0.5rem;
+        border-radius: 5px;
+        color: white;
+        font-weight: bold;
+        text-align: center;
+        font-size: 0.9rem;
+    }
+    .sunny { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
+    .cloudy { background: linear-gradient(135deg, #bdc3c7 0%, #2c3e50 100%); }
+    .rainy { background: linear-gradient(135deg, #a8c0ff 0%, #3f2b96 100%); }
+    .snow { background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%); color: black; }
+    .recommendation-badge {
+        background: #4CAF50;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin: 0.2rem;
+    }
+    .folder-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        text-align: center;
+        color: white;
+        cursor: pointer;
+        transition: transform 0.3s;
+        min-height: 180px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        border: 2px solid transparent;
+        margin-bottom: 1rem;
+    }
+    .folder-card:hover {
+        transform: scale(1.05);
+        border: 2px solid gold;
+    }
+    .folder-card.selected {
+        border: 3px solid gold;
+        box-shadow: 0 0 20px gold;
+    }
+    .photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+        padding: 1rem;
+    }
+    .photo-card {
+        background: white;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.3s;
+    }
+    .photo-card:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    }
+    .photo-title {
+        padding: 0.75rem;
+        font-weight: bold;
+        text-align: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 1.1rem;
+    }
+    .safety-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-weight: bold;
+        margin: 0.25rem;
+        font-size: 0.9rem;
+    }
+    .safety-high { background: #4CAF50; color: white; }
+    .safety-medium { background: #FFC107; color: black; }
+    .safety-low { background: #F44336; color: white; }
+    .interest-badge {
+        background: #FF6B6B;
+        color: white;
+        padding: 0.2rem 0.5rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        margin: 0.1rem;
+        display: inline-block;
+    }
+    .safety-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-left: 5px solid #FF6B6B;
+        margin-bottom: 1rem;
+    }
+    .safety-tip {
+        background: #e8f4fd;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 0.5rem 0;
+        border-left: 4px solid #2196F3;
+    }
+    .empty-album {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 4rem;
+        border-radius: 20px;
+        text-align: center;
+        color: #666;
+        border: 3px dashed #999;
+        margin: 2rem 0;
+    }
+    .currency-converter {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        color: white;
+        margin: 1rem 0;
+    }
+    .star-rating {
+        color: #FFD700;
+        font-size: 1.2rem;
+        letter-spacing: 2px;
+    }
+    .group-badge {
+        display: inline-block;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-weight: bold;
+        margin: 0.25rem;
+        font-size: 0.9rem;
+    }
+    .group-solo { background: #9C27B0; color: white; }
+    .group-family { background: #FF9800; color: white; }
+    .group-couple { background: #E91E63; color: white; }
+    .group-friends { background: #2196F3; color: white; }
+    .detail-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+        color: #333333;
+    }
+    .trip-destination-item {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 0.5rem;
+        color: #333333;
+        border-left: 4px solid #667eea;
+    }
+    .place-detail {
+        background: #f8f9fa;
+        padding: 0.8rem;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+        border-left: 3px solid #667eea;
+        color: #333333;
+    }
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    .action-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        text-align: center;
+        flex: 1;
+    }
+    .reset-message {
+        background: #ff9800;
+        color: white;
+        padding: 0.5rem;
+        border-radius: 5px;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Initialize session state
+if 'trip_history' not in st.session_state:
+    st.session_state.trip_history = []
+if 'current_trip' not in st.session_state:
+    st.session_state.current_trip = None
+if 'saved_destinations' not in st.session_state:
+    st.session_state.saved_destinations = []
+if 'photo_albums' not in st.session_state:
+    st.session_state.photo_albums = {}  # Empty initially
+if 'selected_country' not in st.session_state:
+    st.session_state.selected_country = None
+if 'view_photos_country' not in st.session_state:
+    st.session_state.view_photos_country = None
+if 'show_place_details' not in st.session_state:
+    st.session_state.show_place_details = None
+if 'safety_ratings' not in st.session_state:
+    st.session_state.safety_ratings = {}
+if 'recommendations_generated' not in st.session_state:
+    st.session_state.recommendations_generated = False
+
+# Famous landmarks database with background images
+COUNTRY_BACKGROUNDS = {
+    'France': {
+        'flag': '🇫🇷',
+        'landmark': '🗼 Eiffel Tower',
+        'image': 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800',
+        'description': 'City of Lights',
+        'capital': 'Paris',
+        'interests': ['Historical', 'Romantic', 'Cultural', 'Food']
+    },
+    'Japan': {
+        'flag': '🇯🇵',
+        'landmark': '🗻 Mount Fuji',
+        'image': 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800',
+        'description': 'Land of the Rising Sun',
+        'capital': 'Tokyo',
+        'interests': ['Cultural', 'Technology', 'Food', 'Mountains']
+    },
+    'UAE': {
+        'flag': '🇦🇪',
+        'landmark': '🏙️ Burj Khalifa',
+        'image': 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800',
+        'description': 'City of Gold',
+        'capital': 'Abu Dhabi',
+        'interests': ['Luxury', 'Modern', 'Desert', 'Shopping']
+    },
+    'Indonesia': {
+        'flag': '🇮🇩',
+        'landmark': '🛕 Tanah Lot',
+        'image': 'https://images.unsplash.com/photo-1537996192471-5f26c3e1c7e6?w=800',
+        'description': 'Island of Gods',
+        'capital': 'Jakarta',
+        'interests': ['Beaches', 'Mountains', 'Cultural', 'Waterfalls']
+    },
+    'USA': {
+        'flag': '🇺🇸',
+        'landmark': '🗽 Statue of Liberty',
+        'image': 'https://images.unsplash.com/photo-1485871981521-5b1fd3805eee?w=800',
+        'description': 'The Big Apple',
+        'capital': 'Washington D.C.',
+        'interests': ['Modern', 'Historical', 'Adventure', 'Food']
+    },
+    'Italy': {
+        'flag': '🇮🇹',
+        'landmark': '🏛️ Colosseum',
+        'image': 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800',
+        'description': 'Eternal City',
+        'capital': 'Rome',
+        'interests': ['Historical', 'Food', 'Romantic', 'Cultural']
+    },
+    'United Kingdom': {
+        'flag': '🇬🇧',
+        'landmark': '🕰️ Big Ben',
+        'image': 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800',
+        'description': 'London Calling',
+        'capital': 'London',
+        'interests': ['Historical', 'Cultural', 'Modern', 'Royal']
+    },
+    'Australia': {
+        'flag': '🇦🇺',
+        'landmark': '🏛️ Sydney Opera House',
+        'image': 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=800',
+        'description': 'Down Under',
+        'capital': 'Canberra',
+        'interests': ['Beaches', 'Wildlife', 'Adventure', 'Nature']
+    },
+    'Thailand': {
+        'flag': '🇹🇭',
+        'landmark': '🛕 Wat Arun',
+        'image': 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=800',
+        'description': 'Land of Smiles',
+        'capital': 'Bangkok',
+        'interests': ['Beaches', 'Cultural', 'Food', 'Waterfalls']
+    },
+    'Egypt': {
+        'flag': '🇪🇬',
+        'landmark': '🔺 Pyramids',
+        'image': 'https://images.unsplash.com/photo-1503177119275-0aa32b3a9368?w=800',
+        'description': 'Gift of the Nile',
+        'capital': 'Cairo',
+        'interests': ['Historical', 'Desert', 'Adventure', 'Archaeology']
+    },
+    'India': {
+        'flag': '🇮🇳',
+        'landmark': '🕌 Taj Mahal',
+        'image': 'https://images.unsplash.com/photo-1548013146-72479768bada?w=800',
+        'description': 'Incredible India',
+        'capital': 'New Delhi',
+        'interests': ['Historical', 'Cultural', 'Mountains', 'Waterfalls', 'Food']
+    },
+    'Singapore': {
+        'flag': '🇸🇬',
+        'landmark': '🏨 Marina Bay Sands',
+        'image': 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=800',
+        'description': 'Lion City',
+        'capital': 'Singapore',
+        'interests': ['Modern', 'Food', 'Shopping', 'Cultural']
+    },
+    'Switzerland': {
+        'flag': '🇨🇭',
+        'landmark': '⛰️ Matterhorn',
+        'image': 'https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?w=800',
+        'description': 'Heaven on Earth',
+        'capital': 'Bern',
+        'interests': ['Mountains', 'Snow', 'Nature', 'Adventure']
+    },
+    'Canada': {
+        'flag': '🇨🇦',
+        'landmark': '🍁 CN Tower',
+        'image': 'https://images.unsplash.com/photo-1517935706615-2717063c2225?w=800',
+        'description': 'Great White North',
+        'capital': 'Ottawa',
+        'interests': ['Mountains', 'Snow', 'Nature', 'Waterfalls', 'Wildlife']
+    },
+    'Norway': {
+        'flag': '🇳🇴',
+        'landmark': '🌌 Northern Lights',
+        'image': 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800',
+        'description': 'Land of Fjords',
+        'capital': 'Oslo',
+        'interests': ['Snow', 'Mountains', 'Waterfalls', 'Nature']
+    },
+    'New Zealand': {
+        'flag': '🇳🇿',
+        'landmark': '🏔️ Milford Sound',
+        'image': 'https://images.unsplash.com/photo-1469796466635-455e9406263f?w=800',
+        'description': 'Adventure Capital',
+        'capital': 'Wellington',
+        'interests': ['Mountains', 'Waterfalls', 'Adventure', 'Nature', 'Beaches']
+    },
+    'Maldives': {
+        'flag': '🇲🇻',
+        'landmark': '🏝️ Overwater Bungalows',
+        'image': 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=800',
+        'description': 'Tropical Paradise',
+        'capital': 'Male',
+        'interests': ['Beaches', 'Water Sports', 'Romantic', 'Luxury']
+    },
+    'Peru': {
+        'flag': '🇵🇪',
+        'landmark': '🏔️ Machu Picchu',
+        'image': 'https://images.unsplash.com/photo-1526392064735-418b8c6f5c5b?w=800',
+        'description': 'Ancient Wonders',
+        'capital': 'Lima',
+        'interests': ['Historical', 'Mountains', 'Adventure', 'Archaeology']
+    },
+    'Greece': {
+        'flag': '🇬🇷',
+        'landmark': '🏛️ Parthenon',
+        'image': 'https://images.unsplash.com/photo-1533577116850-9cc66cad8a9b?w=800',
+        'description': 'Cradle of Civilization',
+        'capital': 'Athens',
+        'interests': ['Historical', 'Beaches', 'Food', 'Cultural']
+    },
+    'Spain': {
+        'flag': '🇪🇸',
+        'landmark': '🏟️ Sagrada Familia',
+        'image': 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?w=800',
+        'description': 'Vibrant Culture',
+        'capital': 'Madrid',
+        'interests': ['Cultural', 'Food', 'Beaches', 'Historical']
+    }
+}
+
+# Currency conversion rates (INR as base)
+CURRENCY_RATES = {
+    'INR': 1.0,
+    'USD': 83.5,
+    'EUR': 90.2,
+    'GBP': 105.3,
+    'JPY': 0.55,
+    'AUD': 54.8,
+    'AED': 22.7,
+    'SGD': 61.9,
+    'CAD': 61.2,
+    'CHF': 94.5,
+    'NOK': 7.8,
+    'NZD': 51.2,
+    'MVR': 5.4,
+    'PEN': 22.3,
+    'THB': 2.3,
+    'IDR': 0.0054,
+    'EGP': 1.7,
+    'TRY': 2.6
+}
+
+# Header with animated effect
+st.markdown('<div class="main-header">✈️ Travel Planner - Smart Travel Advisor</div>', unsafe_allow_html=True)
+
+# Sidebar for trip parameters
+with st.sidebar:
+    st.markdown("## 🎯 Plan Your Journey")
+    
+    # Trip details
+    trip_name = st.text_input("Trip Name", "My Dream Vacation")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("Start Date", datetime.now() + timedelta(days=30))
+    with col2:
+        end_date = st.date_input("End Date", datetime.now() + timedelta(days=37))
+    
+    # Calculate trip duration
+    trip_duration = (end_date - start_date).days
+    st.info(f"📅 Trip Duration: {trip_duration} days")
+    
+    # Travel Group Selection (DYNAMIC STARS)
+    st.markdown("### 👥 Travel Group")
+    travel_group = st.radio(
+        "Who are you traveling with?",
+        ["Solo", "Couple", "Family with Kids", "Friends Group"],
+        index=0,
+        horizontal=True
+    )
+    
+    # Group-specific badge colors
+    group_class = {
+        "Solo": "group-solo",
+        "Couple": "group-couple",
+        "Family with Kids": "group-family",
+        "Friends Group": "group-friends"
+    }
+    
+    # Travel Interests (DYNAMIC STARS)
+    st.markdown("### 🎯 Your Interests")
+    st.markdown("Select what you want to experience:")
+    
+    col_i1, col_i2 = st.columns(2)
+    with col_i1:
+        mountains = st.checkbox("🏔️ Mountains", value=True)
+        beaches = st.checkbox("🏖️ Beaches", value=True)
+        historical = st.checkbox("🏛️ Historical Places", value=True)
+        waterfalls = st.checkbox("💦 Waterfalls", value=False)
+    
+    with col_i2:
+        snow = st.checkbox("❄️ Snow Activities", value=False)
+        food = st.checkbox("🍜 Food & Cuisine", value=True)
+        adventure = st.checkbox("🧗 Adventure Sports", value=False)
+        wildlife = st.checkbox("🦁 Wildlife", value=False)
+    
+    selected_interests = []
+    if mountains: selected_interests.append("Mountains")
+    if beaches: selected_interests.append("Beaches")
+    if historical: selected_interests.append("Historical")
+    if waterfalls: selected_interests.append("Waterfalls")
+    if snow: selected_interests.append("Snow")
+    if food: selected_interests.append("Food")
+    if adventure: selected_interests.append("Adventure")
+    if wildlife: selected_interests.append("Wildlife")
+    
+    # Budget settings with INR support
+    st.markdown("### 💰 Budget Settings")
+    currency = st.selectbox("Currency", ["INR", "USD", "EUR", "GBP", "JPY", "AUD", "AED", "SGD", "CAD", "CHF", "NOK", "NZD", "THB", "IDR", "EGP"])
+    
+    # Convert budget display based on currency
+    if currency == 'INR':
+        budget_placeholder = 500000
+        min_budget = 5000
+        max_budget = 5000000
+        step = 5000
+    elif currency == 'JPY':
+        budget_placeholder = 900000
+        min_budget = 15000
+        max_budget = 9000000
+        step = 10000
+    elif currency == 'IDR':
+        budget_placeholder = 90000000
+        min_budget = 1000000
+        max_budget = 900000000
+        step = 1000000
+    else:
+        budget_placeholder = 5000
+        min_budget = 100
+        max_budget = 50000
+        step = 100
+    
+    total_budget = st.number_input(f"Total Budget ({currency})", 
+                                   min_value=min_budget, 
+                                   max_value=max_budget, 
+                                   value=budget_placeholder, 
+                                   step=step)
+    
+    # Show INR equivalent
+    if currency != 'INR':
+        inr_value = total_budget * CURRENCY_RATES[currency]
+        st.caption(f"≈ ₹{inr_value:,.0f} INR")
+    
+    # Solo traveler safety (keeping original)
+    st.markdown("### 👩 Solo Traveler Safety")
+    is_solo_female = st.checkbox("I'm a solo female traveler (for safety ratings)", value=True)
+    
+    # Reset functionality - Clear previous trip data before generating new recommendations
+    col_reset1, col_reset2 = st.columns(2)
+    with col_reset1:
+        if st.button("🔄 Reset Trip", use_container_width=True):
+            st.session_state.current_trip = None
+            st.session_state.recommendations_generated = False
+            st.session_state.destinations = []
+            st.rerun()
+    
+    with col_reset2:
+        # Generate trip button with reset functionality
+        if st.button("🎯 Generate Recommendations", use_container_width=True):
+            # Reset previous trip data
+            st.session_state.current_trip = {
+                'name': trip_name,
+                'start_date': start_date,
+                'end_date': end_date,
+                'duration': trip_duration,
+                'budget': total_budget,
+                'currency': currency,
+                'travel_group': travel_group,
+                'interests': selected_interests,
+                'is_solo_female': is_solo_female,
+                'destinations': [],
+                'created_at': datetime.now()
+            }
+            st.session_state.recommendations_generated = True
+            st.success("✅ New recommendations generated based on your group and interests!")
+            st.rerun()
+
+# Function to calculate dynamic star ratings based on group and interests
+def calculate_dynamic_rating(dest, travel_group, selected_interests):
+    """
+    Calculate star rating (1-5) based on:
+    - Group type (solo/couple/family/friends)
+    - User interests (mountains/beaches/historical/waterfalls/snow)
+    """
+    base_score = 3.0  # Base score
+    
+    # Group-based adjustments
+    group_weights = {
+        "Solo": {
+            "Japan": +1.5, "Singapore": +1.5, "Switzerland": +1.0, "Norway": +1.0,
+            "New Zealand": +1.0, "Thailand": +0.5, "Indonesia": +0.5, "France": +0.5,
+            "Italy": +0.5, "UK": +0.5, "India": 0.0, "UAE": 0.0, "USA": 0.0,
+            "Egypt": -0.5, "Greece": +0.5, "Spain": +0.5, "default": 0.0
+        },
+        "Couple": {
+            "France": +1.5, "Italy": +1.5, "Maldives": +2.0, "Switzerland": +1.5,
+            "Greece": +1.5, "Spain": +1.5, "Thailand": +1.0, "Indonesia": +1.0,
+            "Japan": +1.0, "UK": +0.5, "default": 0.0
+        },
+        "Family with Kids": {
+            "Singapore": +1.5, "Japan": +1.5, "USA": +1.0, "Australia": +1.5,
+            "UK": +1.0, "Switzerland": +1.0, "Canada": +1.5, "Thailand": +0.5,
+            "Indonesia": +0.5, "India": +0.5, "UAE": +1.0, "default": 0.0
+        },
+        "Friends Group": {
+            "Thailand": +1.5, "Indonesia": +1.5, "USA": +1.0, "Australia": +1.0,
+            "Spain": +1.5, "Greece": +1.0, "Japan": +0.5, "UAE": +0.5,
+            "India": +0.5, "default": 0.0
+        }
+    }
+    
+    # Interest-based adjustments
+    interest_weights = {
+        "Mountains": {
+            "Switzerland": +1.5, "Norway": +1.5, "Canada": +1.5, "New Zealand": +1.5,
+            "Peru": +1.5, "India": +1.0, "Japan": +1.0, "France": +0.5, 
+            "Italy": +0.5, "default": 0.0
+        },
+        "Beaches": {
+            "Maldives": +2.0, "Thailand": +1.5, "Indonesia": +1.5, "Australia": +1.5,
+            "Greece": +1.5, "Spain": +1.5, "USA": +1.0, "India": +1.0,
+            "default": 0.0
+        },
+        "Historical": {
+            "Italy": +1.5, "Greece": +1.5, "Egypt": +1.5, "India": +1.5,
+            "France": +1.0, "UK": +1.0, "Japan": +1.0, "Peru": +1.5,
+            "default": 0.0
+        },
+        "Waterfalls": {
+            "Canada": +1.5, "New Zealand": +1.5, "Norway": +1.5, "Iceland": +2.0,
+            "India": +1.0, "Indonesia": +1.0, "Thailand": +1.0, "USA": +1.0,
+            "default": 0.0
+        },
+        "Snow": {
+            "Switzerland": +1.5, "Norway": +1.5, "Canada": +1.5, "Japan": +1.5,
+            "USA": +1.0, "France": +1.0, "Italy": +1.0, "default": 0.0
+        },
+        "Food": {
+            "Italy": +1.5, "France": +1.5, "Japan": +1.5, "Thailand": +1.5,
+            "India": +1.5, "Singapore": +1.0, "Spain": +1.5, "Greece": +1.0,
+            "default": 0.0
+        },
+        "Adventure": {
+            "New Zealand": +1.5, "Norway": +1.5, "Canada": +1.5, "Switzerland": +1.0,
+            "Peru": +1.5, "default": 0.0
+        },
+        "Wildlife": {
+            "Australia": +1.5, "India": +1.5, "Canada": +1.5, "Kenya": +2.0,
+            "default": 0.0
+        }
+    }
+    
+    # Apply group adjustment
+    country_name = dest['country']
+    group_adjust = group_weights[travel_group].get(country_name, group_weights[travel_group].get('default', 0))
+    
+    # Apply interest adjustments
+    interest_adjust = 0
+    interest_count = 0
+    for interest in selected_interests:
+        if interest in interest_weights:
+            adj = interest_weights[interest].get(country_name, interest_weights[interest].get('default', 0))
+            interest_adjust += adj
+            interest_count += 1
+    
+    if interest_count > 0:
+        interest_adjust = interest_adjust / interest_count  # Average adjustment
+    
+    # Apply safety adjustment for solo female travelers - FIXED
+    safety_adjust = 0
+    if travel_group == "Solo":
+        # Check if current_trip exists and get is_solo_female value safely
+        current_trip = st.session_state.get('current_trip')
+        if current_trip is not None and current_trip.get('is_solo_female', False):
+            if dest['solo_female_safety'] >= 9.0:
+                safety_adjust = +0.5
+            elif dest['solo_female_safety'] >= 8.0:
+                safety_adjust = +0.3
+            elif dest['solo_female_safety'] >= 7.0:
+                safety_adjust = 0.0
+            else:
+                safety_adjust = -0.3
+    
+    # Calculate final score
+    final_score = base_score + group_adjust + interest_adjust + safety_adjust
+    
+    # Ensure score is between 1 and 5
+    final_score = max(1, min(5, final_score))
+    
+    return round(final_score, 1)
+
+# Function to get star rating display
+def get_star_rating(rating):
+    full_stars = int(rating)
+    half_star = rating - full_stars >= 0.5
+    empty_stars = 5 - full_stars - (1 if half_star else 0)
+    
+    stars = "★" * full_stars
+    if half_star:
+        stars += "½"
+    stars += "☆" * empty_stars
+    return stars
+
+# Generate sample destinations with detailed information
+def generate_destinations():
+    destinations = [
+        # Asia
+        {
+            'name': 'Tokyo, Japan',
+            'country': 'Japan',
+            'flag': '🇯🇵',
+            'landmark': 'Mount Fuji',
+            'landmark_emoji': '🗻',
+            'description': 'Futuristic metropolis with traditional temples and amazing food',
+            'long_description': 'Tokyo seamlessly blends the ultramodern with the traditional. From neon-lit skyscrapers to historic temples, from the busiest crosswalk in the world to peaceful imperial gardens. Experience world-class dining, cutting-edge technology, and deep cultural traditions all in one city.',
+            'best_time': 'March-May (Cherry Blossom Season)',
+            'avg_cost_per_day': 25000,
+            'weather': random.choice(['Sunny', 'Cloudy']),
+            'temperature': random.randint(10, 25),
+            'safety_score': 9.5,
+            'solo_female_safety': 9.5,
+            'attractions': [
+                {'name': 'Shibuya Crossing', 'description': 'World\'s busiest pedestrian crossing', 'best_time': 'Evening'},
+                {'name': 'Senso-ji Temple', 'description': 'Ancient Buddhist temple in Asakusa', 'best_time': 'Morning'},
+                {'name': 'Mount Fuji', 'description': 'Japan\'s tallest and most iconic mountain', 'best_time': 'Winter'},
+                {'name': 'Akihabara', 'description': 'Electric town for anime and electronics', 'best_time': 'Afternoon'}
+            ],
+            'foods': ['Sushi', 'Ramen', 'Tempura', 'Takoyaki', 'Matcha'],
+            'local_tips': ['Get a Suica card for trains', 'Learn basic Japanese phrases', 'Carry cash as many places don\'t accept cards'],
+            'group_friendly': ['Solo', 'Couple', 'Family with Kids', 'Friends Group'],
+            'interest_tags': ['Mountains', 'Food', 'Cultural', 'Technology', 'Historical'],
+            'language': 'Japanese',
+            'currency': 'JPY',
+            'safe_areas': ['Shibuya', 'Shinjuku', 'Ginza', 'Harajuku'],
+            'unsafe_areas': ['Kabukicho at night (if alone)', 'Roppongi late night'],
+            'emergency_numbers': {'Police': '110', 'Ambulance': '119', 'English Help': '03-3501-0110'}
+        },
+        {
+            'name': 'Singapore',
+            'country': 'Singapore',
+            'flag': '🇸🇬',
+            'landmark': 'Marina Bay Sands',
+            'landmark_emoji': '🏨',
+            'description': 'Clean, safe, and modern city-state with amazing food',
+            'long_description': 'A futuristic city-state where Chinese, Malay, and Indian cultures blend seamlessly. Home to spectacular architecture, world-class shopping, and some of the best street food in the world. Despite its urban nature, it\'s filled with green spaces and futuristic gardens.',
+            'best_time': 'February-April',
+            'avg_cost_per_day': 22000,
+            'weather': random.choice(['Sunny', 'Rainy']),
+            'temperature': random.randint(26, 32),
+            'safety_score': 9.3,
+            'solo_female_safety': 9.3,
+            'attractions': [
+                {'name': 'Marina Bay Sands', 'description': 'Iconic hotel with infinity pool', 'best_time': 'Sunset'},
+                {'name': 'Gardens by the Bay', 'description': 'Futuristic Supertree Grove', 'best_time': 'Evening'},
+                {'name': 'Sentosa Island', 'description': 'Resort island with beaches', 'best_time': 'Day'},
+                {'name': 'Chinatown', 'description': 'Historic Chinese district', 'best_time': 'Morning'}
+            ],
+            'foods': ['Hainanese Chicken Rice', 'Chili Crab', 'Laksa', 'Satay', 'Kaya Toast'],
+            'local_tips': ['Don\'t litter (heavy fines)', 'Carry tissues for hawker centers', 'Use Grab for taxis'],
+            'group_friendly': ['Solo', 'Couple', 'Family with Kids', 'Friends Group'],
+            'interest_tags': ['Food', 'Modern', 'Shopping', 'Cultural'],
+            'language': 'English, Mandarin',
+            'currency': 'SGD',
+            'safe_areas': ['Marina Bay', 'Orchard Road', 'Sentosa', 'Raffles Place'],
+            'unsafe_areas': ['None really, but be aware in Geylang at night'],
+            'emergency_numbers': {'Police': '999', 'Ambulance': '995'}
+        },
+        {
+            'name': 'Bali, Indonesia',
+            'country': 'Indonesia',
+            'flag': '🇮🇩',
+            'landmark': 'Tanah Lot Temple',
+            'landmark_emoji': '🛕',
+            'description': 'Tropical paradise with beautiful beaches and spiritual retreats',
+            'long_description': 'Known as the Island of the Gods, Bali offers a perfect blend of stunning beaches, lush rice terraces, volcanic mountains, and vibrant Hindu culture. From surfing spots to yoga retreats, from beach clubs to ancient temples, Bali has something for every type of traveler.',
+            'best_time': 'May-September',
+            'avg_cost_per_day': 12000,
+            'weather': random.choice(['Sunny', 'Rainy']),
+            'temperature': random.randint(25, 32),
+            'safety_score': 7.2,
+            'solo_female_safety': 6.8,
+            'attractions': [
+                {'name': 'Tanah Lot Temple', 'description': 'Temple on a rock formation', 'best_time': 'Sunset'},
+                {'name': 'Uluwatu Temple', 'description': 'Clifftop temple with Kecak dance', 'best_time': 'Sunset'},
+                {'name': 'Tegalalang Rice Terraces', 'description': 'Stunning rice paddies', 'best_time': 'Morning'},
+                {'name': 'Mount Batur', 'description': 'Active volcano sunrise trek', 'best_time': 'Early morning'}
+            ],
+            'foods': ['Nasi Goreng', 'Babi Guling', 'Satay', 'Gado-Gado', 'Fresh Coconut'],
+            'local_tips': ['Rent a scooter with international license', 'Use Gojek for transport', 'Respect temple customs'],
+            'group_friendly': ['Couple', 'Friends Group', 'Solo'],
+            'interest_tags': ['Beaches', 'Waterfalls', 'Mountains', 'Cultural'],
+            'language': 'Indonesian',
+            'currency': 'IDR',
+            'safe_areas': ['Ubud', 'Seminyak', 'Nusa Dua', 'Canggu'],
+            'unsafe_areas': ['Remote beaches alone', 'Some parts of Kuta late night'],
+            'emergency_numbers': {'Police': '110', 'Ambulance': '118', 'Tourist Police': '0361-224-444'}
+        },
+        {
+            'name': 'Phuket, Thailand',
+            'country': 'Thailand',
+            'flag': '🇹🇭',
+            'landmark': 'Phi Phi Islands',
+            'landmark_emoji': '🏝️',
+            'description': 'Stunning beaches, crystal clear water, and vibrant nightlife',
+            'long_description': 'Thailand\'s largest island offers everything from party-central Patong to quiet luxury resorts. Explore limestone cliffs, emerald waters, and world-class diving spots. The nearby Phi Phi Islands and Phang Nga Bay are some of the most beautiful spots on earth.',
+            'best_time': 'November-April',
+            'avg_cost_per_day': 10000,
+            'weather': random.choice(['Sunny', 'Rainy']),
+            'temperature': random.randint(28, 34),
+            'safety_score': 7.0,
+            'solo_female_safety': 6.5,
+            'attractions': [
+                {'name': 'Phi Phi Islands', 'description': 'Stunning archipelago', 'best_time': 'Morning'},
+                {'name': 'Patong Beach', 'description': 'Main beach with nightlife', 'best_time': 'Evening'},
+                {'name': 'Big Buddha', 'description': '45m tall Buddha statue', 'best_time': 'Morning'},
+                {'name': 'James Bond Island', 'description': 'Famous from The Man with the Golden Gun', 'best_time': 'Day'}
+            ],
+            'foods': ['Pad Thai', 'Tom Yum Goong', 'Green Curry', 'Mango Sticky Rice', 'Fresh Seafood'],
+            'local_tips': ['Bargain at markets', 'Cover up at temples', 'Use sunscreen liberally'],
+            'group_friendly': ['Friends Group', 'Couple', 'Solo'],
+            'interest_tags': ['Beaches', 'Waterfalls', 'Food', 'Adventure'],
+            'language': 'Thai',
+            'currency': 'THB',
+            'safe_areas': ['Patong', 'Kata', 'Karon', 'Rawai'],
+            'unsafe_areas': ['Some areas late at night', 'Remote beaches after dark'],
+            'emergency_numbers': {'Police': '191', 'Ambulance': '1669', 'Tourist Police': '1155'}
+        },
+        {
+            'name': 'Jaipur, India',
+            'country': 'India',
+            'flag': '🇮🇳',
+            'landmark': 'Hawa Mahal',
+            'landmark_emoji': '🏰',
+            'description': 'The Pink City with magnificent palaces and forts',
+            'long_description': 'The capital of Rajasthan, Jaipur is a vibrant explosion of color, culture, and royal heritage. Known as the Pink City, it\'s home to magnificent forts, opulent palaces, and bustling bazaars. The city\'s architecture reflects a blend of Rajput and Mughal influences.',
+            'best_time': 'October-March',
+            'avg_cost_per_day': 5000,
+            'weather': random.choice(['Sunny', 'Clear']),
+            'temperature': random.randint(22, 32),
+            'safety_score': 7.0,
+            'solo_female_safety': 6.5,
+            'attractions': [
+                {'name': 'Hawa Mahal', 'description': 'Palace of Winds with 953 windows', 'best_time': 'Morning'},
+                {'name': 'Amber Fort', 'description': 'Massive hilltop fort', 'best_time': 'Morning'},
+                {'name': 'City Palace', 'description': 'Royal residence', 'best_time': 'Afternoon'},
+                {'name': 'Jantar Mantar', 'description': 'Ancient astronomical observatory', 'best_time': 'Day'}
+            ],
+            'foods': ['Dal Baati Churma', 'Laal Maas', 'Gatte ki Sabzi', 'Pyaz Kachori', 'Ghewar'],
+            'local_tips': ['Hire a guide for forts', 'Drink only bottled water', 'Dress modestly'],
+            'group_friendly': ['Family with Kids', 'Couple', 'Friends Group'],
+            'interest_tags': ['Historical', 'Cultural', 'Food'],
+            'language': 'Hindi, English',
+            'currency': 'INR',
+            'safe_areas': ['MI Road', 'C-Scheme', 'Bani Park', 'Malviya Nagar'],
+            'unsafe_areas': ['Isolated parts of walled city at night', 'Some areas near bus stand'],
+            'emergency_numbers': {'Police': '100', 'Ambulance': '102', 'Women Helpline': '1091'}
+        },
+        {
+            'name': 'Agra, India',
+            'country': 'India',
+            'flag': '🇮🇳',
+            'landmark': 'Taj Mahal',
+            'landmark_emoji': '🕌',
+            'description': 'Home to the iconic Taj Mahal, rich Mughal history',
+            'long_description': 'Home to the world-famous Taj Mahal, one of the Seven Wonders of the World. This city on the banks of the Yamuna River is steeped in Mughal history and architecture. Beyond the Taj, explore massive forts and the abandoned city of Fatehpur Sikri.',
+            'best_time': 'October-March',
+            'avg_cost_per_day': 4500,
+            'weather': random.choice(['Sunny', 'Clear']),
+            'temperature': random.randint(20, 35),
+            'safety_score': 6.5,
+            'solo_female_safety': 6.0,
+            'attractions': [
+                {'name': 'Taj Mahal', 'description': 'Iconic white marble mausoleum', 'best_time': 'Sunrise'},
+                {'name': 'Agra Fort', 'description': 'Massive red sandstone fort', 'best_time': 'Afternoon'},
+                {'name': 'Fatehpur Sikri', 'description': 'Abandoned Mughal city', 'best_time': 'Morning'},
+                {'name': 'Mehtab Bagh', 'description': 'Garden with Taj view', 'best_time': 'Sunset'}
+            ],
+            'foods': ['Petha', 'Dalmoth', 'Mughlai Cuisine', 'Bedhai', 'Jalebi'],
+            'local_tips': ['Visit Taj at sunrise', 'Avoid touts and guides', 'Use prepaid taxis'],
+            'group_friendly': ['Family with Kids', 'Couple'],
+            'interest_tags': ['Historical', 'Cultural'],
+            'language': 'Hindi, English',
+            'currency': 'INR',
+            'safe_areas': ['Taj Ganj', 'Civil Lines', 'Rakabganj'],
+            'unsafe_areas': ['Isolated areas near the outskirts', 'Some parts of old city after dark'],
+            'emergency_numbers': {'Police': '100', 'Ambulance': '102', 'Women Helpline': '1091'}
+        },
+        # Europe
+        {
+            'name': 'Paris, France',
+            'country': 'France',
+            'flag': '🇫🇷',
+            'landmark': 'Eiffel Tower',
+            'landmark_emoji': '🗼',
+            'description': 'City of Love, famous for the Eiffel Tower and exquisite cuisine',
+            'long_description': 'The City of Light needs no introduction. From the iconic Eiffel Tower to the world-class Louvre Museum, from charming sidewalk cafes to grand boulevards, Paris embodies romance and culture. Explore historic neighborhoods, indulge in exquisite cuisine, and experience art at every corner.',
+            'best_time': 'April-June',
+            'avg_cost_per_day': 21000,
+            'weather': random.choice(['Sunny', 'Cloudy', 'Rainy']),
+            'temperature': random.randint(15, 28),
+            'safety_score': 7.5,
+            'solo_female_safety': 7.0,
+            'attractions': [
+                {'name': 'Eiffel Tower', 'description': 'Iconic iron lattice tower', 'best_time': 'Sunset'},
+                {'name': 'Louvre Museum', 'description': 'World\'s largest art museum', 'best_time': 'Morning'},
+                {'name': 'Notre-Dame Cathedral', 'description': 'Medieval Gothic cathedral', 'best_time': 'Day'},
+                {'name': 'Montmartre', 'description': 'Artistic hilltop village', 'best_time': 'Evening'}
+            ],
+            'foods': ['Croissant', 'Baguette', 'Escargot', 'Coq au Vin', 'Macarons', 'Cheese'],
+            'local_tips': ['Learn basic French', 'Watch for pickpockets', 'Validate train tickets'],
+            'group_friendly': ['Couple', 'Family with Kids', 'Solo'],
+            'interest_tags': ['Historical', 'Food', 'Romantic', 'Cultural'],
+            'language': 'French',
+            'currency': 'EUR',
+            'safe_areas': ['Le Marais', 'Saint-Germain', 'Champs-Élysées', 'Latin Quarter'],
+            'unsafe_areas': ['Some parts of 18th arrondissement at night', 'Northern suburbs', 'Gare du Nord area'],
+            'emergency_numbers': {'Police': '17', 'Ambulance': '15', 'Women Helpline': '3919'}
+        },
+        {
+            'name': 'Rome, Italy',
+            'country': 'Italy',
+            'flag': '🇮🇹',
+            'landmark': 'Colosseum',
+            'landmark_emoji': '🏛️',
+            'description': 'Ancient history, incredible food, and romantic atmosphere',
+            'long_description': 'The Eternal City is an open-air museum where ancient history meets modern life. Walk in the footsteps of gladiators at the Colosseum, toss a coin in the Trevi Fountain, and explore the world\'s smallest country, Vatican City. Every corner reveals centuries of history.',
+            'best_time': 'April-June',
+            'avg_cost_per_day': 18000,
+            'weather': random.choice(['Sunny', 'Cloudy']),
+            'temperature': random.randint(15, 28),
+            'safety_score': 7.8,
+            'solo_female_safety': 7.2,
+            'attractions': [
+                {'name': 'Colosseum', 'description': 'Ancient amphitheater', 'best_time': 'Morning'},
+                {'name': 'Vatican City', 'description': 'World\'s smallest country', 'best_time': 'Morning'},
+                {'name': 'Trevi Fountain', 'description': 'Baroque fountain', 'best_time': 'Evening'},
+                {'name': 'Roman Forum', 'description': 'Ancient Roman ruins', 'best_time': 'Day'}
+            ],
+            'foods': ['Pasta Carbonara', 'Pizza Margherita', 'Gelato', 'Espresso', 'Tiramisu'],
+            'local_tips': ['Book attractions in advance', 'Cover up in churches', 'Eat where locals eat'],
+            'group_friendly': ['Family with Kids', 'Couple', 'Friends Group'],
+            'interest_tags': ['Historical', 'Food', 'Cultural'],
+            'language': 'Italian',
+            'currency': 'EUR',
+            'safe_areas': ['Trastevere', 'Centro Storico', 'Prati', 'Monti'],
+            'unsafe_areas': ['Termini Station area at night', 'Some parts of Torpignattara'],
+            'emergency_numbers': {'Police': '112', 'Ambulance': '118', 'Anti-Violence': '1522'}
+        },
+        {
+            'name': 'London, UK',
+            'country': 'United Kingdom',
+            'flag': '🇬🇧',
+            'landmark': 'Big Ben',
+            'landmark_emoji': '🕰️',
+            'description': 'Historic city with royal palaces and modern attractions',
+            'long_description': 'A global city with a rich history stretching back to Roman times. From royal palaces to modern skyscrapers, from world-class museums to trendy markets, London offers endless exploration. Experience the pageantry of the Changing of the Guard, ride the London Eye, and explore diverse neighborhoods.',
+            'best_time': 'May-September',
+            'avg_cost_per_day': 23000,
+            'weather': random.choice(['Cloudy', 'Rainy']),
+            'temperature': random.randint(10, 22),
+            'safety_score': 8.0,
+            'solo_female_safety': 7.8,
+            'attractions': [
+                {'name': 'Big Ben', 'description': 'Iconic clock tower', 'best_time': 'Day'},
+                {'name': 'London Eye', 'description': 'Giant observation wheel', 'best_time': 'Sunset'},
+                {'name': 'Buckingham Palace', 'description': 'Royal residence', 'best_time': 'Morning for Changing of Guard'},
+                {'name': 'British Museum', 'description': 'World history museum', 'best_time': 'Afternoon'}
+            ],
+            'foods': ['Fish and Chips', 'Sunday Roast', 'Afternoon Tea', 'Full English Breakfast', 'Pie and Mash'],
+            'local_tips': ['Get an Oyster card', 'Stand on the right on escalators', 'Book theaters in advance'],
+            'group_friendly': ['Family with Kids', 'Couple', 'Solo'],
+            'interest_tags': ['Historical', 'Cultural', 'Modern'],
+            'language': 'English',
+            'currency': 'GBP',
+            'safe_areas': ['Kensington', 'Westminster', 'Covent Garden', 'Notting Hill'],
+            'unsafe_areas': ['Some parts of Hackney', 'Certain estates in East London'],
+            'emergency_numbers': {'Police': '999', 'Ambulance': '999', 'Womens Aid': '0808-2000-247'}
+        },
+        {
+            'name': 'Swiss Alps, Switzerland',
+            'country': 'Switzerland',
+            'flag': '🇨🇭',
+            'landmark': 'Matterhorn',
+            'landmark_emoji': '⛰️',
+            'description': 'Stunning Alps, beautiful lakes, and charming villages',
+            'long_description': 'Picture-perfect alpine scenery with snow-capped peaks, crystal-clear lakes, and charming villages. Whether you\'re skiing in winter or hiking in summer, the Swiss Alps offer breathtaking beauty. Ride the highest railway in Europe, visit the Jungfrau region, and experience Swiss hospitality.',
+            'best_time': 'June-September or December-March',
+            'avg_cost_per_day': 28000,
+            'weather': random.choice(['Sunny', 'Snow']),
+            'temperature': random.randint(0, 22),
+            'safety_score': 9.0,
+            'solo_female_safety': 9.0,
+            'attractions': [
+                {'name': 'Matterhorn', 'description': 'Iconic pyramid-shaped mountain', 'best_time': 'Sunrise'},
+                {'name': 'Jungfraujoch', 'description': 'Top of Europe railway', 'best_time': 'Morning'},
+                {'name': 'Lake Geneva', 'description': 'Large alpine lake', 'best_time': 'Day'},
+                {'name': 'Interlaken', 'description': 'Adventure capital', 'best_time': 'All day'}
+            ],
+            'foods': ['Fondue', 'Raclette', 'Rösti', 'Swiss Chocolate', 'Muesli'],
+            'local_tips': ['Get a Swiss Travel Pass', 'Check mountain weather', 'Try local cheeses'],
+            'group_friendly': ['Family with Kids', 'Couple', 'Solo', 'Friends Group'],
+            'interest_tags': ['Mountains', 'Snow', 'Nature', 'Adventure'],
+            'language': 'German, French, Italian',
+            'currency': 'CHF',
+            'safe_areas': ['Zurich', 'Geneva', 'Interlaken', 'Lucerne', 'Zermatt'],
+            'unsafe_areas': ['Very few, avoid isolated mountain trails alone'],
+            'emergency_numbers': {'Police': '117', 'Ambulance': '144', 'Mountain Rescue': '1414'}
+        },
+        {
+            'name': 'Santorini, Greece',
+            'country': 'Greece',
+            'flag': '🇬🇷',
+            'landmark': 'Caldera View',
+            'landmark_emoji': '🏝️',
+            'description': 'Stunning sunsets, whitewashed buildings, and blue domes',
+            'long_description': 'The most romantic of the Greek Islands, Santorini is famous for its dramatic views, stunning sunsets, and unique volcanic landscape. Whitewashed villages cling to cliffs overlooking the deep blue caldera. Explore ancient ruins, taste local wines, and watch the world-famous sunset in Oia.',
+            'best_time': 'May-October',
+            'avg_cost_per_day': 20000,
+            'weather': random.choice(['Sunny', 'Clear']),
+            'temperature': random.randint(20, 30),
+            'safety_score': 8.5,
+            'solo_female_safety': 8.2,
+            'attractions': [
+                {'name': 'Oia Sunset', 'description': 'World-famous sunset view', 'best_time': 'Sunset'},
+                {'name': 'Red Beach', 'description': 'Unique red sand beach', 'best_time': 'Morning'},
+                {'name': 'Ancient Akrotiri', 'description': 'Minoan Bronze Age settlement', 'best_time': 'Morning'},
+                {'name': 'Fira', 'description': 'Capital with stunning views', 'best_time': 'Evening'}
+            ],
+            'foods': ['Fresh Seafood', 'Fava', 'Tomato Keftedes', 'Greek Salad', 'Local Wine'],
+            'local_tips': ['Book sunset dinner in advance', 'Rent ATV for exploration', 'Take a boat tour'],
+            'group_friendly': ['Couple', 'Friends Group', 'Solo'],
+            'interest_tags': ['Beaches', 'Romantic', 'Food', 'Historical'],
+            'language': 'Greek',
+            'currency': 'EUR',
+            'safe_areas': ['Fira', 'Oia', 'Imerovigli', 'Perissa'],
+            'unsafe_areas': ['Very safe overall'],
+            'emergency_numbers': {'Police': '100', 'Ambulance': '166', 'Tourist Police': '171'}
+        },
+        {
+            'name': 'Barcelona, Spain',
+            'country': 'Spain',
+            'flag': '🇪🇸',
+            'landmark': 'Sagrada Familia',
+            'landmark_emoji': '🏟️',
+            'description': 'Gaudí architecture, vibrant culture, and beautiful beaches',
+            'long_description': 'A Mediterranean gem known for its unique architecture, vibrant street life, and beautiful beaches. Antoni Gaudí\'s masterpieces dot the city, from the still-unfinished Sagrada Familia to the whimsical Park Güell. Enjoy tapas, flamenco, and the bustling La Rambla.',
+            'best_time': 'May-June or September',
+            'avg_cost_per_day': 19000,
+            'weather': random.choice(['Sunny', 'Clear']),
+            'temperature': random.randint(18, 28),
+            'safety_score': 7.5,
+            'solo_female_safety': 7.2,
+            'attractions': [
+                {'name': 'Sagrada Familia', 'description': 'Gaudí\'s masterpiece', 'best_time': 'Morning'},
+                {'name': 'Park Güell', 'description': 'Colorful park with city views', 'best_time': 'Afternoon'},
+                {'name': 'Gothic Quarter', 'description': 'Medieval old town', 'best_time': 'Evening'},
+                {'name': 'Barceloneta Beach', 'description': 'City beach', 'best_time': 'Day'}
+            ],
+            'foods': ['Paella', 'Tapas', 'Patatas Bravas', 'Jamón Ibérico', 'Churros'],
+            'local_tips': ['Book Gaudí sites in advance', 'Watch for pickpockets', 'Explore on foot'],
+            'group_friendly': ['Friends Group', 'Couple', 'Family with Kids'],
+            'interest_tags': ['Cultural', 'Food', 'Beaches', 'Architecture'],
+            'language': 'Spanish, Catalan',
+            'currency': 'EUR',
+            'safe_areas': ['Eixample', 'Gràcia', 'El Born', 'Barceloneta'],
+            'emergency_numbers': {'Police': '112', 'Ambulance': '061'}
+        },
+        # Americas
+        {
+            'name': 'New York, USA',
+            'country': 'USA',
+            'flag': '🇺🇸',
+            'landmark': 'Statue of Liberty',
+            'landmark_emoji': '🗽',
+            'description': 'The city that never sleeps, iconic landmarks and diverse culture',
+            'long_description': 'The Big Apple needs no introduction. From the bright lights of Times Square to the peaceful paths of Central Park, from world-class museums to diverse neighborhoods, New York offers endless energy and opportunities. Experience Broadway shows, iconic skyline views, and cuisine from around the world.',
+            'best_time': 'September-November or April-June',
+            'avg_cost_per_day': 26000,
+            'weather': random.choice(['Sunny', 'Cloudy', 'Rainy']),
+            'temperature': random.randint(5, 30),
+            'safety_score': 7.0,
+            'solo_female_safety': 6.5,
+            'attractions': [
+                {'name': 'Statue of Liberty', 'description': 'Iconic symbol of freedom', 'best_time': 'Morning'},
+                {'name': 'Times Square', 'description': 'Bright lights of Broadway', 'best_time': 'Evening'},
+                {'name': 'Central Park', 'description': 'Urban oasis', 'best_time': 'Day'},
+                {'name': 'Empire State Building', 'description': 'Iconic skyscraper', 'best_time': 'Sunset'}
+            ],
+            'foods': ['New York Pizza', 'Bagels', 'Hot Dogs', 'Pastrami Sandwich', 'Cheesecake'],
+            'local_tips': ['Get a MetroCard', 'Walk across Brooklyn Bridge', 'Explore different neighborhoods'],
+            'group_friendly': ['Family with Kids', 'Friends Group', 'Couple'],
+            'interest_tags': ['Modern', 'Cultural', 'Food', 'Historical'],
+            'language': 'English',
+            'currency': 'USD',
+            'safe_areas': ['Upper East Side', 'Midtown', 'Brooklyn Heights', 'West Village'],
+            'unsafe_areas': ['Some parts of Bronx', 'Certain subway stations late night'],
+            'emergency_numbers': {'Police': '911', 'Ambulance': '911'}
+        },
+        {
+            'name': 'Banff, Canada',
+            'country': 'Canada',
+            'flag': '🇨🇦',
+            'landmark': 'Lake Louise',
+            'landmark_emoji': '🏞️',
+            'description': 'Spectacular mountains, turquoise lakes, and wildlife',
+            'long_description': 'Jewel of the Canadian Rockies, Banff National Park offers some of the most spectacular mountain scenery on earth. Turquoise lakes reflect towering peaks, wildlife roams freely, and outdoor adventures await at every turn. Visit the iconic Lake Louise, drive the Icefields Parkway, and soak in hot springs.',
+            'best_time': 'June-September',
+            'avg_cost_per_day': 24000,
+            'weather': random.choice(['Sunny', 'Snow', 'Cloudy']),
+            'temperature': random.randint(-5, 22),
+            'safety_score': 8.8,
+            'solo_female_safety': 8.8,
+            'attractions': [
+                {'name': 'Lake Louise', 'description': 'Turquoise glacial lake', 'best_time': 'Sunrise'},
+                {'name': 'Moraine Lake', 'description': 'Spectacular lake with Valley of the Ten Peaks', 'best_time': 'Morning'},
+                {'name': 'Banff Gondola', 'description': 'Ride to Sulphur Mountain', 'best_time': 'Sunset'},
+                {'name': 'Icefields Parkway', 'description': 'Scenic mountain highway', 'best_time': 'Day'}
+            ],
+            'foods': ['Poutine', 'Maple Syrup', 'Canadian Bacon', 'Wild Salmon', 'BeaverTails'],
+            'local_tips': ['Book accommodation early', 'Carry bear spray on hikes', 'Check road conditions'],
+            'group_friendly': ['Family with Kids', 'Couple', 'Friends Group'],
+            'interest_tags': ['Mountains', 'Snow', 'Waterfalls', 'Wildlife', 'Nature'],
+            'language': 'English, French',
+            'currency': 'CAD',
+            'safe_areas': ['Banff Town', 'Lake Louise Village', 'Canmore'],
+            'unsafe_areas': ['Very safe overall, practice wildlife safety'],
+            'emergency_numbers': {'Police': '911', 'Ambulance': '911'}
+        },
+        {
+            'name': 'Machu Picchu, Peru',
+            'country': 'Peru',
+            'flag': '🇵🇪',
+            'landmark': 'Machu Picchu',
+            'landmark_emoji': '🏔️',
+            'description': 'Ancient Incan citadel in the Andes Mountains',
+            'long_description': 'One of the New Seven Wonders of the World, Machu Picchu is a breathtaking Incan citadel perched high in the Andes. Mysterious and awe-inspiring, this archaeological wonder offers a glimpse into ancient civilization. Hike the Inca Trail, explore the Sacred Valley, and experience Andean culture.',
+            'best_time': 'May-September',
+            'avg_cost_per_day': 15000,
+            'weather': random.choice(['Sunny', 'Rainy']),
+            'temperature': random.randint(10, 22),
+            'safety_score': 6.8,
+            'solo_female_safety': 6.2,
+            'attractions': [
+                {'name': 'Machu Picchu', 'description': 'Ancient Incan citadel', 'best_time': 'Sunrise'},
+                {'name': 'Inca Trail', 'description': 'Famous trek to Machu Picchu', 'best_time': 'May-September'},
+                {'name': 'Sacred Valley', 'description': 'Incan agricultural area', 'best_time': 'Day'},
+                {'name': 'Cusco', 'description': 'Historic Incan capital', 'best_time': 'Day'}
+            ],
+            'foods': ['Ceviche', 'Lomo Saltado', 'Quinoa Soup', 'Alpaca', 'Pisco Sour'],
+            'local_tips': ['Book Machu Picchu tickets in advance', 'Acclimatize in Cusco', 'Take altitude seriously'],
+            'group_friendly': ['Adventure', 'Couple', 'Friends Group'],
+            'interest_tags': ['Historical', 'Mountains', 'Adventure', 'Archaeology'],
+            'language': 'Spanish',
+            'currency': 'PEN',
+            'safe_areas': ['Cusco', 'Aguas Calientes', 'Sacred Valley'],
+            'unsafe_areas': ['Remote areas alone'],
+            'emergency_numbers': {'Police': '105', 'Ambulance': '106', 'Tourist Police': '(084) 22-1101'}
+        },
+        # Oceania
+        {
+            'name': 'Sydney, Australia',
+            'country': 'Australia',
+            'flag': '🇦🇺',
+            'landmark': 'Sydney Opera House',
+            'landmark_emoji': '🏛️',
+            'description': 'Stunning harbor, beautiful beaches, and outdoor lifestyle',
+            'long_description': 'Australia\'s largest city is famous for its iconic Opera House and Harbour Bridge. Beautiful beaches, a vibrant food scene, and a love for the outdoors define Sydney. Climb the bridge, surf at Bondi, explore the Rocks district, and enjoy the laid-back Australian lifestyle.',
+            'best_time': 'September-November',
+            'avg_cost_per_day': 20000,
+            'weather': random.choice(['Sunny', 'Cloudy']),
+            'temperature': random.randint(18, 26),
+            'safety_score': 8.8,
+            'solo_female_safety': 8.5,
+            'attractions': [
+                {'name': 'Sydney Opera House', 'description': 'Iconic performing arts center', 'best_time': 'Day'},
+                {'name': 'Sydney Harbour Bridge', 'description': 'Famous bridge for climbing', 'best_time': 'Sunset'},
+                {'name': 'Bondi Beach', 'description': 'World-famous beach', 'best_time': 'Morning'},
+                {'name': 'Taronga Zoo', 'description': 'Zoo with harbor views', 'best_time': 'Morning'}
+            ],
+            'foods': ['Meat Pie', 'Barramundi', 'Lamington', 'Vegemite', 'Tim Tams'],
+            'local_tips': ['Use Opal card for transport', 'Sun safety is serious', 'Explore beyond the CBD'],
+            'group_friendly': ['Family with Kids', 'Couple', 'Solo', 'Friends Group'],
+            'interest_tags': ['Beaches', 'Wildlife', 'Nature', 'Adventure'],
+            'language': 'English',
+            'currency': 'AUD',
+            'safe_areas': ['Sydney CBD', 'Bondi', 'Manly', 'Surry Hills'],
+            'unsafe_areas': ['Kings Cross late night', 'Certain parts of Redfern'],
+            'emergency_numbers': {'Police': '000', 'Ambulance': '000'}
+        },
+        {
+            'name': 'Queenstown, New Zealand',
+            'country': 'New Zealand',
+            'flag': '🇳🇿',
+            'landmark': 'Milford Sound',
+            'landmark_emoji': '🏔️',
+            'description': 'Adventure capital with stunning fjords and mountains',
+            'long_description': 'The adventure capital of the world, set on the shores of Lake Wakatipu with the Remarkables mountain range as backdrop. Bungee jumping, skydiving, jet boating - if it\'s adrenaline-pumping, you can do it here. Nearby Milford Sound offers some of the most spectacular scenery on earth.',
+            'best_time': 'December-February',
+            'avg_cost_per_day': 22000,
+            'weather': random.choice(['Sunny', 'Rainy']),
+            'temperature': random.randint(15, 25),
+            'safety_score': 9.0,
+            'solo_female_safety': 9.0,
+            'attractions': [
+                {'name': 'Milford Sound', 'description': 'Spectacular fjord', 'best_time': 'Morning'},
+                {'name': 'Shotover River', 'description': 'Famous for jet boating', 'best_time': 'Day'},
+                {'name': 'Skyline Gondola', 'description': 'Gondola with panoramic views', 'best_time': 'Sunset'},
+                {'name': 'Fiordland National Park', 'description': 'Stunning national park', 'best_time': 'Day'}
+            ],
+            'foods': ['Lamb', 'Green-Lipped Mussels', 'Pavlova', 'Hokey Pokey Ice Cream', 'Kiwi Fruit'],
+            'local_tips': ['Book adventure activities in advance', 'Weather changes quickly', 'Drive carefully'],
+            'group_friendly': ['Adventure', 'Couple', 'Friends Group'],
+            'interest_tags': ['Mountains', 'Waterfalls', 'Adventure', 'Nature'],
+            'language': 'English',
+            'currency': 'NZD',
+            'safe_areas': ['Queenstown CBD', 'Arrowtown', 'Wanaka'],
+            'unsafe_areas': ['Very safe overall'],
+            'emergency_numbers': {'Police': '111', 'Ambulance': '111'}
+        },
+        # Middle East & Africa
+        {
+            'name': 'Dubai, UAE',
+            'country': 'UAE',
+            'flag': '🇦🇪',
+            'landmark': 'Burj Khalifa',
+            'landmark_emoji': '🏙️',
+            'description': 'Luxury destination with the worlds tallest building',
+            'long_description': 'A city of superlatives - the tallest building, the largest mall, the most luxurious hotels. Dubai has transformed from a desert outpost to a futuristic metropolis. Experience desert safaris, indoor skiing, world-class shopping, and architectural marvels that defy imagination.',
+            'best_time': 'November-March',
+            'avg_cost_per_day': 30000,
+            'weather': random.choice(['Sunny', 'Clear']),
+            'temperature': random.randint(20, 35),
+            'safety_score': 8.5,
+            'solo_female_safety': 7.5,
+            'attractions': [
+                {'name': 'Burj Khalifa', 'description': 'World\'s tallest building', 'best_time': 'Sunset'},
+                {'name': 'Dubai Mall', 'description': 'World\'s largest mall', 'best_time': 'Evening'},
+                {'name': 'Palm Jumeirah', 'description': 'Iconic palm-shaped island', 'best_time': 'Day'},
+                {'name': 'Desert Safari', 'description': 'Dune bashing and desert experience', 'best_time': 'Afternoon'}
+            ],
+            'foods': ['Shawarma', 'Hummus', 'Manakish', 'Luqaimat', 'Arabic Coffee'],
+            'local_tips': ['Dress modestly in public', 'Use Careem or Uber', 'Avoid summer travel'],
+            'group_friendly': ['Family with Kids', 'Couple', 'Friends Group'],
+            'interest_tags': ['Luxury', 'Modern', 'Desert', 'Shopping'],
+            'language': 'Arabic',
+            'currency': 'AED',
+            'safe_areas': ['Dubai Marina', 'Downtown Dubai', 'Jumeirah', 'Palm Jumeirah'],
+            'unsafe_areas': ['Some areas of Deira at night', 'Industrial areas'],
+            'emergency_numbers': {'Police': '999', 'Ambulance': '998', 'Tourist Police': '800-4438'}
+        },
+        {
+            'name': 'Maldives',
+            'country': 'Maldives',
+            'flag': '🇲🇻',
+            'landmark': 'Overwater Bungalows',
+            'landmark_emoji': '🏝️',
+            'description': 'Tropical paradise with crystal clear waters and luxury resorts',
+            'long_description': 'The ultimate tropical paradise - a nation of 26 atolls with powder-soft white sand beaches and the clearest turquoise water you\'ll ever see. Stay in overwater bungalows, snorkel with manta rays, and experience unparalleled luxury and relaxation in this Indian Ocean gem.',
+            'best_time': 'November-April',
+            'avg_cost_per_day': 35000,
+            'weather': random.choice(['Sunny', 'Clear']),
+            'temperature': random.randint(27, 32),
+            'safety_score': 8.5,
+            'solo_female_safety': 7.8,
+            'attractions': [
+                {'name': 'Overwater Bungalows', 'description': 'Iconic accommodation', 'best_time': 'All day'},
+                {'name': 'Male Atoll', 'description': 'Capital and nearby islands', 'best_time': 'Day'},
+                {'name': 'Banana Reef', 'description': 'Famous diving spot', 'best_time': 'Morning'},
+                {'name': 'Vaadhoo Island', 'description': 'Sea of Stars bioluminescence', 'best_time': 'Night'}
+            ],
+            'foods': ['Fresh Seafood', 'Mas Huni', 'Garudhiya', 'Hedhikaa', 'Raa'],
+            'local_tips': ['Choose resort carefully', 'Bring reef-safe sunscreen', 'Respect local islands'],
+            'group_friendly': ['Couple', 'Family with Kids'],
+            'interest_tags': ['Beaches', 'Water Sports', 'Romantic', 'Luxury'],
+            'language': 'Dhivehi',
+            'currency': 'MVR',
+            'safe_areas': ['Resort Islands', 'Male City'],
+            'unsafe_areas': ['Very safe overall'],
+            'emergency_numbers': {'Police': '119', 'Ambulance': '102'}
+        }
+    ]
+    return destinations
+
+# Main content area with tabs
+tab_main1, tab_main2, tab_main3, tab_main4 = st.tabs(["🌍 Destinations", "📸 Photo Blog", "👩 Solo Travel Safety", "🗺️ Trip Planner"])
+
+with tab_main1:
+    st.markdown("### 🗺️ Personalized Destinations Based on Your Preferences")
+    
+    # Check if recommendations have been generated
+    if not st.session_state.recommendations_generated:
+        st.info("👈 Please configure your preferences in the sidebar and click 'Generate Recommendations' to see personalized destination suggestions!")
+    else:
+        # Display current preferences
+        if travel_group and selected_interests:
+            group_class_display = group_class.get(travel_group, "group-solo")
+            st.markdown(f"""
+            <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; padding: 1rem; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 10px;">
+                <span class="group-badge {group_class_display}">👥 {travel_group}</span>
+                {"".join([f'<span class="interest-badge">{"🏔️" if i=="Mountains" else "🏖️" if i=="Beaches" else "🏛️" if i=="Historical" else "💦" if i=="Waterfalls" else "❄️" if i=="Snow" else "🍜" if i=="Food" else "🧗" if i=="Adventure" else "🦁"} {i}</span>' for i in selected_interests])}
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Generate destinations (fixed list, doesn't change until regenerate button)
+        destinations = generate_destinations()
+        
+        # Calculate dynamic ratings based on current preferences
+        for dest in destinations:
+            dest['dynamic_rating'] = calculate_dynamic_rating(dest, travel_group, selected_interests)
+            dest['stars'] = get_star_rating(dest['dynamic_rating'])
+        
+        # Sort by dynamic rating (highest first)
+        destinations = sorted(destinations, key=lambda x: x['dynamic_rating'], reverse=True)
+        
+        # Create destination cards with country-specific backgrounds
+        for i in range(0, len(destinations), 2):
+            cols = st.columns(2)
+            for j in range(2):
+                if i + j < len(destinations):
+                    dest = destinations[i + j]
+                    with cols[j]:
+                        # Get country background
+                        bg = COUNTRY_BACKGROUNDS.get(dest['country'], COUNTRY_BACKGROUNDS['France'])
+                        
+                        # Weather class for badge
+                        weather_class = dest['weather'].lower()
+                        if dest['weather'] == 'Snow':
+                            weather_class = 'snow'
+                        
+                        # Safety badge class
+                        safety_class = 'safety-high' if dest['solo_female_safety'] >= 8 else 'safety-medium' if dest['solo_female_safety'] >= 6.5 else 'safety-low'
+                        
+                        # Convert cost to selected currency
+                        cost_inr = dest['avg_cost_per_day']
+                        if currency != 'INR':
+                            cost_in_currency = cost_inr / CURRENCY_RATES[currency]
+                        else:
+                            cost_in_currency = cost_inr
+                        
+                        # Get dynamic star rating
+                        stars = dest['stars']
+                        dynamic_rating = dest['dynamic_rating']
+                        
+                        # Destination card with background image
+                        st.markdown(f"""
+                        <div class="destination-card" style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('{bg['image']}');">
+                            <div class="destination-card-content">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                                    <h3>{dest['flag']} {dest['name']} {dest['landmark_emoji']}</h3>
+                                    <span class="weather-badge {weather_class}">{dest['weather']} {dest['temperature']}°C</span>
+                                </div>
+                                <p><strong>Famous Landmark:</strong> {dest['landmark']}</p>
+                                <p>{dest['description'][:100]}...</p>
+                                <div style="display: flex; gap: 1rem; margin: 0.5rem 0; flex-wrap: wrap;">
+                                    <span>💰 {currency} {cost_in_currency:,.0f}/day</span>
+                                    <span class="{safety_class} safety-badge">👩 Safety: {dest['solo_female_safety']}/10</span>
+                                </div>
+                                <div style="margin: 0.5rem 0;">
+                                    <span class="star-rating">{stars}</span>
+                                    <span style="margin-left: 0.5rem; font-weight: bold;">({dynamic_rating}/5)</span>
+                                </div>
+                                <div style="margin-top: 0.5rem; display: flex; gap: 0.3rem; flex-wrap: wrap;">
+                                    {"".join([f'<span class="interest-badge">{tag}</span>' for tag in dest['interest_tags'][:3]])}
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Two buttons side by side: Add to Trip and Details
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            if st.button(f"➕ Add to Trip", key=f"add_{i+j}_{dest['country']}", use_container_width=True):
+                                if st.session_state.current_trip:
+                                    st.session_state.current_trip['destinations'].append(dest)
+                                    
+                                    # Initialize empty photo album for this country if not exists
+                                    if dest['country'] not in st.session_state.photo_albums:
+                                        st.session_state.photo_albums[dest['country']] = []
+                                    
+                                    st.success(f"✅ Added {dest['name']} to your trip!")
+                                    st.rerun()
+                                else:
+                                    st.warning("Please generate a trip plan first!")
+                        
+                        with col_btn2:
+                            if st.button(f"ℹ️ Details", key=f"details_{i+j}_{dest['country']}", use_container_width=True):
+                                # Show detailed information in an expander below
+                                st.session_state.show_place_details = dest['country']
+                                st.rerun()
+                        
+                        # Show details if button was clicked
+                        if st.session_state.get('show_place_details') == dest['country']:
+                            with st.expander(f"📋 Detailed Information about {dest['flag']} {dest['name']}", expanded=True):
+                                st.markdown(f"""
+                                <div class="detail-card">
+                                    <h2>{dest['flag']} {dest['name']}</h2>
+                                    <p><strong>Country:</strong> {dest['country']}</p>
+                                    <p><strong>Famous Landmark:</strong> {dest['landmark']} {dest['landmark_emoji']}</p>
+                                    <p><strong>Description:</strong> {dest['long_description']}</p>
+                                    <p><strong>Best Time to Visit:</strong> {dest['best_time']}</p>
+                                    <p><strong>Average Cost per Day:</strong> {currency} {dest['avg_cost_per_day']/CURRENCY_RATES[currency]:,.0f}</p>
+                                    <p><strong>Language:</strong> {dest['language']}</p>
+                                    <p><strong>Currency:</strong> {dest['currency']}</p>
+                                </div>
+                                
+                                <div class="detail-card">
+                                    <h3>🏛️ Top Attractions</h3>
+                                """, unsafe_allow_html=True)
+                                
+                                for attraction in dest['attractions']:
+                                    st.markdown(f"""
+                                    <div class="place-detail">
+                                        <strong>{attraction['name']}</strong> - {attraction['description']}<br>
+                                        <small>Best time: {attraction['best_time']}</small>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                st.markdown(f"""
+                                <div class="detail-card">
+                                    <h3>🍜 Local Cuisine</h3>
+                                    <p>{', '.join(dest['foods'])}</p>
+                                </div>
+                                
+                                <div class="detail-card">
+                                    <h3>💡 Local Tips</h3>
+                                """, unsafe_allow_html=True)
+                                
+                                for tip in dest.get('local_tips', ['No local tips available']):
+                                    st.markdown(f"✓ {tip}")
+                                
+                                st.markdown("</div>", unsafe_allow_html=True)
+                                
+                                if st.button("Close Details", key=f"close_details_{dest['country']}"):
+                                    st.session_state.show_place_details = None
+                                    st.rerun()
+
+with tab_main2:
+    st.markdown("### 📸 Country Photo Albums")
+    st.markdown("#### Upload and store your vacation photos by country")
+    
+    col_blog1, col_blog2 = st.columns([1, 3])
+    
+    with col_blog1:
+        st.markdown("#### 📂 Countries")
+        
+        # Get list of countries from destinations for album creation
+        all_destinations = generate_destinations()
+        available_countries = list(set([dest['country'] for dest in all_destinations]))
+        available_countries.sort()
+        
+        # Create new album section
+        st.markdown("##### Create New Album")
+        new_country = st.selectbox("Select Country", [""] + available_countries, key="new_album_country")
+        
+        if new_country and new_country != "":
+            if new_country not in st.session_state.photo_albums:
+                st.session_state.photo_albums[new_country] = []
+                st.success(f"Created album for {new_country}!")
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Display existing album folders
+        if st.session_state.photo_albums:
+            st.markdown("##### Your Albums")
+            for country in sorted(st.session_state.photo_albums.keys()):
+                # Get country background
+                bg = COUNTRY_BACKGROUNDS.get(country, {'flag': '🏳️', 'landmark': '📍'})
+                photo_count = len(st.session_state.photo_albums[country])
+                
+                # Folder card
+                folder_class = "folder-card selected" if st.session_state.selected_country == country else "folder-card"
+                
+                if st.button(f"{bg['flag']} {country}\n📸 {photo_count} photos", key=f"folder_{country}", use_container_width=True):
+                    st.session_state.selected_country = country
+                    st.rerun()
+        else:
+            st.info("No photo albums yet. Create your first album by selecting a country above!")
+    
+    with col_blog2:
+        if st.session_state.selected_country or st.session_state.view_photos_country:
+            # Use view_photos_country if set, otherwise use selected_country
+            country = st.session_state.view_photos_country or st.session_state.selected_country
+            bg = COUNTRY_BACKGROUNDS.get(country, {'flag': '🏳️', 'landmark': '📍', 'image': '', 'description': ''})
+            
+            # Country header with background
+            if bg['image']:
+                st.markdown(f"""
+                <div style="background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('{bg['image']}'); 
+                            background-size: cover; background-position: center; 
+                            padding: 2rem; border-radius: 15px; color: white; margin-bottom: 1.5rem;">
+                    <h2>{bg['flag']} {country} Photo Album</h2>
+                    <p>{bg['landmark']} - {bg['description']}</p>
+                    <p>📸 {len(st.session_state.photo_albums.get(country, []))} photos</p>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            padding: 2rem; border-radius: 15px; color: white; margin-bottom: 1.5rem;">
+                    <h2>{bg['flag']} {country} Photo Album</h2>
+                    <p>📸 {len(st.session_state.photo_albums.get(country, []))} photos</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Upload photo section
+            with st.expander("📤 Upload New Photo", expanded=True):
+                st.markdown('<div class="upload-section">', unsafe_allow_html=True)
+                
+                uploaded_file = st.file_uploader("Choose a photo", type=['jpg', 'jpeg', 'png'], key=f"upload_{country}")
+                
+                if uploaded_file is not None:
+                    # Display uploaded image
+                    image = Image.open(uploaded_file)
+                    st.image(image, caption="Preview", use_container_width=True)
+                    
+                    col_title, col_date = st.columns(2)
+                    with col_title:
+                        photo_title = st.text_input("Photo Title", "My Amazing Memory", key=f"title_{country}")
+                    with col_date:
+                        photo_date = st.date_input("Photo Date", datetime.now(), key=f"date_{country}")
+                    
+                    photo_description = st.text_area("Description", "", key=f"desc_{country}")
+                    photo_location = st.text_input("Location (specific place)", "", key=f"loc_{country}")
+                    
+                    if st.button("💾 Save to Album", use_container_width=True, key=f"save_{country}"):
+                        # Create photo entry
+                        if country not in st.session_state.photo_albums:
+                            st.session_state.photo_albums[country] = []
+                        
+                        new_photo = {
+                            'id': f"photo_{country}_{len(st.session_state.photo_albums[country])}_{random.randint(1000, 9999)}",
+                            'title': photo_title,
+                            'description': photo_description,
+                            'location': photo_location,
+                            'date': photo_date.strftime('%Y-%m-%d'),
+                            'country': country,
+                            'image_data': image,
+                            'uploaded_at': datetime.now(),
+                            'likes': 0,
+                            'comments': []
+                        }
+                        
+                        st.session_state.photo_albums[country].append(new_photo)
+                        st.success(f"✅ Photo saved to {country} album!")
+                        st.rerun()
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Display photos
+            if country in st.session_state.photo_albums and st.session_state.photo_albums[country]:
+                photos = st.session_state.photo_albums[country]
+                
+                st.markdown(f"#### 🖼️ {len(photos)} Photos in {country}")
+                
+                # Create photo grid
+                for i in range(0, len(photos), 3):
+                    cols = st.columns(3)
+                    for j in range(3):
+                        if i + j < len(photos):
+                            photo = photos[i + j]
+                            with cols[j]:
+                                # Display photo
+                                if 'image_data' in photo and photo['image_data'] is not None:
+                                    st.image(photo['image_data'], use_container_width=True)
+                                else:
+                                    # Placeholder
+                                    img = Image.new('RGB', (300, 200), color='#667eea')
+                                    d = ImageDraw.Draw(img)
+                                    d.text((150, 100), "📸", fill='white', anchor='mm')
+                                    st.image(img, use_container_width=True)
+                                
+                                st.markdown(f"""
+                                <div class="photo-title">{photo['title']}</div>
+                                <div style="padding: 0.5rem; background: #f5f5f5; border-radius: 0 0 10px 10px;">
+                                    <p style="margin: 0; font-size: 0.9rem;">
+                                        📍 {photo.get('location', 'Unknown')}<br>
+                                        📅 {photo['date']}<br>
+                                        ❤️ {photo['likes']}
+                                    </p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                if st.button(f"❤️ Like", key=f"like_{photo['id']}"):
+                                    photo['likes'] += 1
+                                    st.rerun()
+            else:
+                # Empty album message
+                st.markdown(f"""
+                <div class="empty-album">
+                    <h2>📷</h2>
+                    <h3>No photos in {country} album yet</h3>
+                    <p>Upload your first photo using the form above!</p>
+                    <p style="font-size: 3rem; margin: 1rem 0;">✨</p>
+                    <p>Your memories from {country} will appear here</p>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            # No country selected
+            st.markdown("""
+            <div class="empty-album">
+                <h2>📁</h2>
+                <h3>Select a country folder</h3>
+                <p>Choose a country from the left panel to view or add photos</p>
+                <p style="font-size: 3rem; margin: 1rem 0;">🗂️</p>
+                <p>Create albums for each country you visit</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+with tab_main3:
+    st.markdown("### 👩 Solo Female Traveler Safety Guide")
+    st.markdown("#### Safety ratings and recommendations based on your profile")
+    
+    col_safe1, col_safe2 = st.columns([1, 1])
+    
+    with col_safe1:
+        st.markdown("#### 🛡️ Safety Ratings by Country")
+        
+        # Get destinations and sort by solo female safety
+        safety_destinations = generate_destinations()
+        safety_destinations = sorted(safety_destinations, key=lambda x: x['solo_female_safety'], reverse=True)
+        
+        # Create safety comparison chart
+        safety_data = []
+        for dest in safety_destinations[:10]:  # Top 10 safest
+            safety_data.append({
+                'Country': f"{dest['flag']} {dest['country']}",
+                'Safety Score': dest['solo_female_safety']
+            })
+        
+        safety_df = pd.DataFrame(safety_data)
+        
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=safety_df['Country'],
+            y=safety_df['Safety Score'],
+            marker_color=['#4CAF50' if x >= 8 else '#FFC107' if x >= 6.5 else '#F44336' for x in safety_df['Safety Score']],
+            text=safety_df['Safety Score'],
+            textposition='outside',
+        ))
+        
+        fig.update_layout(
+            title="Safety Scores for Solo Female Travelers",
+            xaxis_title="Country",
+            yaxis_title="Safety Score (out of 10)",
+            height=500,
+            yaxis=dict(range=[0, 10])
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Safety rank table
+        st.markdown("#### 📊 Safety Ranking")
+        rank_data = []
+        for dest in safety_destinations[:15]:
+            stars = get_star_rating(dest['solo_female_safety']/2)
+            rank_data.append({
+                'Country': f"{dest['flag']} {dest['country']}",
+                'Safety Score': f"{dest['solo_female_safety']}/10",
+                'Rating': stars
+            })
+        
+        rank_df = pd.DataFrame(rank_data)
+        st.dataframe(rank_df, use_container_width=True)
+    
+    with col_safe2:
+        st.markdown("#### 💡 Solo Female Traveler Tips")
+        
+        # Destination selector for specific tips
+        selected_dest_safety = st.selectbox(
+            "Select Country for Detailed Safety Tips",
+            [f"{dest['flag']} {dest['country']}" for dest in safety_destinations]
+        )
+        
+        # Extract country name from selection
+        for dest in safety_destinations:
+            if dest['country'] in selected_dest_safety or dest['flag'] in selected_dest_safety:
+                st.markdown(f"""
+                <div class="safety-card">
+                    <h4>{dest['flag']} {dest['country']} - Safety Details</h4>
+                    <p><span class="star-rating">{get_star_rating(dest['solo_female_safety']/2)}</span> ({dest['solo_female_safety']}/10)</p>
+                    <p><strong>Safe Areas:</strong> {', '.join(dest['safe_areas'])}</p>
+                    <p><strong>Areas to Avoid:</strong> {', '.join(dest.get('unsafe_areas', ['None reported']))}</p>
+                    <p><strong>Emergency Numbers:</strong></p>
+                    <ul>
+                """, unsafe_allow_html=True)
+                
+                for service, number in dest['emergency_numbers'].items():
+                    st.markdown(f"<li>{service}: {number}</li>", unsafe_allow_html=True)
+                
+                st.markdown("</ul>", unsafe_allow_html=True)
+                
+                # Safety tips
+                st.markdown("#### 📋 Safety Tips")
+                safety_tips = dest.get('local_tips', [
+                    'Stay in well-lit areas at night',
+                    'Keep copies of important documents',
+                    'Share your location with family',
+                    'Use reputable transportation services'
+                ])
+                for tip in safety_tips[:5]:
+                    st.markdown(f"✓ {tip}")
+
+with tab_main4:
+    st.markdown("### 🗺️ Your Trip Planner")
+    
+    col_plan1, col_plan2 = st.columns([2, 1])
+    
+    with col_plan1:
+        st.markdown("#### 🎒 Current Trip Plan")
+        
+        if st.session_state.current_trip:
+            trip = st.session_state.current_trip
+            
+            # Trip summary - Fixed text visibility
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <h4 style="color: white;">{trip['name']}</h4>
+                <p style="color: white;">{trip['start_date'].strftime('%d %b %Y')} - {trip['end_date'].strftime('%d %b %Y')}</p>
+                <p style="color: white;">Duration: {trip['duration']} days | Budget: {trip['currency']} {trip['budget']:,.0f}</p>
+                <p style="color: white;">Group: {trip['travel_group']} | Interests: {', '.join(trip['interests'])}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Display added destinations with fixed visibility
+            if trip['destinations']:
+                st.markdown("#### 📍 Your Selected Destinations")
+                
+                for idx, dest in enumerate(trip['destinations']):
+                    # Fixed visibility - light background with dark text
+                    st.markdown(f"""
+                    <div class="trip-destination-item">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>{dest['flag']} {dest['name']}</strong><br>
+                                <span>⭐ {dest['stars']} ({dest['dynamic_rating']}/5) | 👩 Safety: {dest['solo_female_safety']}/10</span>
+                            </div>
+                            <div>
+                                <span>💰 {trip['currency']} {dest['avg_cost_per_day']/CURRENCY_RATES[trip['currency']]:,.0f}/day</span>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Remove button
+                    if st.button(f"❌ Remove", key=f"remove_trip_{idx}"):
+                        trip['destinations'].pop(idx)
+                        st.rerun()
+                
+                # Budget calculation
+                if trip['destinations']:
+                    total_daily_cost = sum([dest['avg_cost_per_day'] for dest in trip['destinations']]) / len(trip['destinations'])
+                    total_trip_cost = total_daily_cost * trip['duration'] * len(trip['destinations'])
+                    
+                    # Convert to selected currency
+                    if trip['currency'] != 'INR':
+                        total_trip_cost = total_trip_cost / CURRENCY_RATES[trip['currency']]
+                    
+                    st.markdown("#### 💵 Trip Cost Summary")
+                    
+                    # Cost summary cards with fixed visibility
+                    col_b1, col_b2, col_b3 = st.columns(3)
+                    with col_b1:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <h4>Daily Avg</h4>
+                            <p style="font-size: 1.5rem; font-weight: bold;">{trip['currency']} {total_daily_cost/CURRENCY_RATES[trip['currency']]:,.0f}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with col_b2:
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <h4>Total Cost</h4>
+                            <p style="font-size: 1.5rem; font-weight: bold;">{trip['currency']} {total_trip_cost:,.0f}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with col_b3:
+                        remaining = trip['budget'] - total_trip_cost
+                        color = "green" if remaining >= 0 else "red"
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <h4>Remaining</h4>
+                            <p style="font-size: 1.5rem; font-weight: bold; color: {color};">{trip['currency']} {remaining:,.0f}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Save trip button
+                    if st.button("💾 Save This Trip", use_container_width=True):
+                        st.session_state.trip_history.append(trip.copy())
+                        st.success("Trip saved to history!")
+            else:
+                st.info("Add destinations from the Destinations tab to build your trip")
+        else:
+            st.info("Generate a trip plan using the sidebar first!")
+    
+    with col_plan2:
+        st.markdown("#### 📋 Quick Info")
+        
+        # Display trip summary without checkboxes
+        if st.session_state.current_trip:
+            trip = st.session_state.current_trip
+            
+            st.markdown(f"""
+            <div class="detail-card">
+                <h4>Trip Summary</h4>
+                <p><strong>Name:</strong> {trip['name']}</p>
+                <p><strong>Duration:</strong> {trip['duration']} days</p>
+                <p><strong>Budget:</strong> {trip['currency']} {trip['budget']:,.0f}</p>
+                <p><strong>Group:</strong> {trip['travel_group']}</p>
+                <p><strong>Interests:</strong> {', '.join(trip['interests'])}</p>
+                <p><strong>Destinations:</strong> {len(trip['destinations'])}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Currency converter
+        st.markdown("#### 💱 Quick Currency Converter")
+        convert_amount = st.number_input("Amount in INR", min_value=100, value=10000, step=100, key="currency_conv")
+        
+        st.markdown(f"""
+        <div class="currency-converter">
+            <p>₹{convert_amount:,.0f} INR =</p>
+            <p>${convert_amount/83.5:,.2f} USD</p>
+            <p>€{convert_amount/90.2:,.2f} EUR</p>
+            <p>£{convert_amount/105.3:,.2f} GBP</p>
+            <p>¥{convert_amount/0.55:,.0f} JPY</p>
+            <p>A${convert_amount/54.8:,.2f} AUD</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# Footer
+st.markdown("---")
+st.markdown(
+    """
+    <div style="text-align: center; color: #666; padding: 1rem;">
+        ✈️ AI Travel Planner - Smart Travel Advisor<br>
+        Star ratings change dynamically based on your travel group and interests<br>
+        Destinations remain fixed until you generate new recommendations
+    </div>
+    """,
+    unsafe_allow_html=True
+)
